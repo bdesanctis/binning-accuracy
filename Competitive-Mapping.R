@@ -1,5 +1,5 @@
 
-# R script associated with "Accuracy of Competitive Mapping for Binning Metagenomic Sequences".
+# R script associated with "Theoretical Analysis of Supervised Binning for Metagenomic Sequences using a Coalescent Model".
 # Bianca De Sanctis, May 13 2021.
 
 # The main function compute.prob() is defined on line 200. It takes as input N (effective population size), mu (mutation rate for the sequence per generation),  Ttf (true-false species divergence time), Tqt (true-query species divergence time), At, Af and Aq (ages of true, false and query sequences), rT and rF (completeness of true and false reference sequences), prob (the type of assignment probability: correct, incorrect or no), and protocol (either least-mismatch or exact-match), and it outputs the assignment probability.
