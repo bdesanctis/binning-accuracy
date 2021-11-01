@@ -24,38 +24,42 @@ case1 = function(N,mu,Ttf,
   if(! prob %in% c("correct","incorrect","no")){print("error: specify an acceptable prob")}
   
   case1inner = function(t1,t2){
-    # Theroetically, we want to sum this on l=k to inf, k=0 to infinity. 
-    # But very quickly as we increase k, the values will be come negligible. So just go up to some number lmax which is sufficiently large.
-    # l is for false species, k is for true
-    lmax = max(3,round(Ttf*mu*2*10))
-    lks = combn(0:lmax,2)
-    if( prob == "correct" & protocol == "least-mismatch"){ # l > k
-      ls = lks[2,]; ks = lks[1,]
+    if(protocol == "least-mismatch"){
+      # Theoretically, we want to sum this on l=k to inf, k=0 to infinity. 
+      # But very quickly as we increase k, the values will be come negligible. So just go up to some number lmax which is sufficiently large.
+      # l is for false species, k is for true
+      lmax = max(3,round(Ttf*mu*2*10))
+      lks = combn(0:lmax,2)
+      if( prob == "correct" & protocol == "least-mismatch"){ # l > k
+        ls = lks[2,]; ks = lks[1,]
+      }
+      if( prob == "no" & protocol == "least-mismatch"){ # l = k
+        ls = ks = 0:lmax
+      }
+      if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
+        ls = lks[1,]; ks = lks[2,]
+      }
+      innersumfunc = function(l,k){
+        mu^(l+k) * (2*t2 - t1-Af)^l * (t1-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
+      }
+      innersumfunc = Vectorize(innersumfunc)
+      inner = rowSums(innersumfunc(ls,ks))
     }
-    if( prob == "correct" & protocol == "exact-match"){ # l > 0, k = 0
-      ls = 1:lmax; ks = 0
+    if(protocol == "exact-match"){
+      if (prob=="correct"){
+        inner = exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(2*t2-t1 - Af)))
+      }
+      if(prob =="incorrect"){
+        inner = (1-exp(-mu*(t1 - At )))*exp(-mu*(2*t2 - Af - Aq))
+      }
+      if(prob=="no"){
+        inner = 1 - exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(2*t2-t1 - Af))) - (1-exp(-mu*(t1 - At )))*exp(-mu*(2*t2 - Af - Aq))
+      }
     }
-    if( prob == "no" & protocol == "least-mismatch"){ # l = k
-      ls = ks = 0:lmax
-    }
-    if(prob == "no" & protocol == "exact-match"){ # l > 0, k > 0, OR l = k = 0
-      lks = combn(1:lmax,2)
-      ls = c(0,lks[1,],lks[2,],1:lmax); ks = c(0, lks[2,],lks[1,],1:lmax) 
-    }
-    if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
-      ls = lks[1,]; ks = lks[2,]
-    }
-    if ( prob == "incorrect" & protocol == "exact-match"){ # l = 0, k > 0
-      ls = 0; ks = 1:lmax
-    }
-    innersumfunc = function(l,k){
-      mu^(l+k) * (2*t2 - t1-Af)^l * (t1-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
-    }
-    innersumfunc = Vectorize(innersumfunc)
-    innersum = rowSums(innersumfunc(ls,ks))
-    front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t2/(2*N)) # 1e30 avoids underflow errors
-    return(innersum*front)
+  front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t2/(2*N)) # 1e30 avoids underflow errors
+  return(inner*front)
   }
+  
   
   F1 = function(t2) {
     fun <- function(t1) case1inner(t1,t2) 
@@ -71,35 +75,40 @@ case2.1 = function(N,mu,Ttf,
                    Tqt=0,At=0,Af=0,Aq=0,
                    prob="correct",protocol="least-mismatch"){
   case2.1inner = function(t1,t2){
-    
-    lmax = max(3,round(Ttf*mu*2*3))
-    lks = combn(0:lmax,2)
-    if( prob == "correct" & protocol == "least-mismatch"){ # l > k
-      ls = lks[2,]; ks = lks[1,]
+    if(protocol == "least-mismatch"){
+      # Theoretically, we want to sum this on l=k to inf, k=0 to infinity. 
+      # But very quickly as we increase k, the values will be come negligible. So just go up to some number lmax which is sufficiently large.
+      # l is for false species, k is for true
+      lmax = max(3,round(Ttf*mu*2*10))
+      lks = combn(0:lmax,2)
+      if( prob == "correct" & protocol == "least-mismatch"){ # l > k
+        ls = lks[2,]; ks = lks[1,]
+      }
+      if( prob == "no" & protocol == "least-mismatch"){ # l = k
+        ls = ks = 0:lmax
+      }
+      if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
+        ls = lks[1,]; ks = lks[2,]
+      }
+      innersumfunc = function(l,k){
+        mu^(l+k) * (2*t2 - t1-Af)^l * (t1-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
+      }
+      innersumfunc = Vectorize(innersumfunc)
+      inner = rowSums(innersumfunc(ls,ks))
     }
-    if( prob == "correct" & protocol == "exact-match"){ # l > 0, k = 0
-      ls = 1:lmax; ks = 0
+    if(protocol == "exact-match"){
+      if (prob=="correct"){
+        inner = exp(-mu*2*t1) *(1- exp(-mu*(2*t2-t1)))
+      }
+      if(prob =="incorrect"){
+        inner = (1-exp(-mu*t1))*exp(-mu*(2*t2))
+      }
+      if(prob=="no"){
+        inner = 1 - exp(-mu*2*t1) *(1- exp(-mu*(2*t2-t1))) - (1-exp(-mu*t1))*exp(-mu*(2*t2))
+      }
     }
-    if( prob == "no" & protocol == "least-mismatch"){ # l = k
-      ls = ks = 0:lmax
-    }
-    if(prob == "no" & protocol == "exact-match"){ # l > 0, k > 0, OR l = k = 0
-      lks = combn(1:lmax,2)
-      ls = c(0,lks[1,],lks[2,],1:lmax); ks = c(0, lks[2,],lks[1,],1:lmax) 
-    }
-    if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
-      ls = lks[1,]; ks = lks[2,]
-    }
-    if ( prob == "incorrect" & protocol == "exact-match"){ # l = 0, k > 0
-      ls = 0; ks = 1:lmax
-    }
-    innersumfunc = function(l,k){
-      mu^(l+k) * (2*t2 - t1-Af)^l * (t1-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
-    }
-    innersumfunc = Vectorize(innersumfunc)
-    innersum = rowSums(innersumfunc(ls,ks))
     front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t2/(2*N)) # 1e30 avoids underflow errors
-    return(innersum*front)
+    return(inner*front)
   }
   F1 = function(t1) { # <- outer integral dt
     fun <- function(t2) case2.1inner(t1,t2)  # <- inner integral dt
@@ -115,36 +124,39 @@ case2.2 = function(N,mu,Ttf,
                    Tqt=0,At=0,Af=0,Aq=0,
                    prob="correct",protocol="least-mismatch"){
   case2.2inner = function(t1,t2){
+    if(protocol == "least-mismatch"){
+      lmax = max(3,round(Ttf*mu*2*3))
+      lks = combn(0:lmax,2)
+      if( prob == "correct" & protocol == "least-mismatch"){ # l > k
+        ls = lks[2,]; ks = lks[1,]
+      }
+      if( prob == "no" & protocol == "least-mismatch"){ # l = k
+        ls = ks = 0:lmax
+      }
+      if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
+        ls = lks[1,]; ks = lks[2,]
+      }
+      innersumfunc = function(l,k){
+        # t1 is vectorized, so doing t1-t1+1 just gets it into the right dimensions
+        (t1-t1+1) * mu^(l+k) * (t2-Af)^l * (t2-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
+      }
+      innersumfunc = Vectorize(innersumfunc)
+      inner = rowSums(innersumfunc(ls,ks))
+    }
+    if(protocol == "exact-match"){
+      if (prob=="correct"){
+        inner = exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(t2 - Af)))
+      }
+      if(prob =="incorrect"){
+        inner = exp(-mu*(2*t1 - Af - Aq)) * (1-exp(-mu*( t2 - At )))
+      }
+      if(prob=="no"){
+        inner = 1 - exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(t2 - Af))) - exp(-mu*(2*t1 - Af - Aq)) * (1-exp(-mu*( t2 - At )))
+      }
+    }
     
-    lmax = max(3,round(Ttf*mu*2*3))
-    lks = combn(0:lmax,2)
-    if( prob == "correct" & protocol == "least-mismatch"){ # l > k
-      ls = lks[2,]; ks = lks[1,]
-    }
-    if( prob == "correct" & protocol == "exact-match"){ # l > 0, k = 0
-      ls = 1:lmax; ks = 0
-    }
-    if( prob == "no" & protocol == "least-mismatch"){ # l = k
-      ls = ks = 0:lmax
-    }
-    if(prob == "no" & protocol == "exact-match"){ # l > 0, k > 0, OR l = k = 0
-      lks = combn(1:lmax,2)
-      ls = c(0,lks[1,],lks[2,],1:lmax); ks = c(0, lks[2,],lks[1,],1:lmax) 
-    }
-    if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
-      ls = lks[1,]; ks = lks[2,]
-    }
-    if ( prob == "incorrect" & protocol == "exact-match"){ # l = 0, k > 0
-      ls = 0; ks = 1:lmax
-    }
-    innersumfunc = function(l,k){
-      # t1 is vectorized, so doing t1-t1+1 just gets it into the right dimensions
-      (t1-t1+1) * mu^(l+k) * (t2-Af)^l * (t2-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
-    }
-    innersumfunc = Vectorize(innersumfunc)
-    innersum = rowSums(innersumfunc(ls,ks))
     front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t2/(2*N)) # 1e30 avoids underflow errors
-    return(innersum*front)
+    return(inner*front)
   }
   F1 = function(t2) { # <- outer integral dt
     fun <- function(t1) case2.2inner(t1,t2)  # <- inner integral dt
@@ -160,36 +172,40 @@ case2.3 = function(N,mu,Ttf,
                    Tqt=0,At=0,Af=0,Aq=0,
                    prob="correct",protocol="least-mismatch"){
   case2.3inner = function(t1,t3){
+    if(protocol == "least-mismatch"){
+      lmax = max(3,round(Ttf*mu*2*3))
+      lks = combn(0:lmax,2)
+      if( prob == "correct" & protocol == "least-mismatch"){ # l > k
+        ls = lks[2,]; ks = lks[1,]
+      }
+      if( prob == "no" & protocol == "least-mismatch"){ # l = k
+        ls = ks = 0:lmax
+      }
+      if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
+        ls = lks[1,]; ks = lks[2,]
+      }
+      innersumfunc = function(l,k){
+        # the t1-t1+1 at the beginning is because t1 is vectorized, and this just gets it into the right dimensions
+        mu^(l+k) * (t3-Af)^l * (2*t1-t3-At)^k * exp(-mu*(2*t1-Af-At)) / (factorial(l)*factorial(k))
+      }
+      innersumfunc = Vectorize(innersumfunc)
+      inner = rowSums(innersumfunc(ls,ks))
+    }
     
-    lmax = max(3,round(Ttf*mu*2*3))
-    lks = combn(0:lmax,2)
-    if( prob == "correct" & protocol == "least-mismatch"){ # l > k
-      ls = lks[2,]; ks = lks[1,]
+    if(protocol == "exact-match"){
+      if (prob=="correct"){
+        inner = exp(-mu*(2*t3 - At - Aq)) *(1- exp(-mu*(t2 - Af)))
+      }
+      if(prob =="incorrect"){
+        inner = exp(-mu*(2*t2 - Af - Aq)) * (1-exp(-mu*(2*t3-t2 - At)))
+      }
+      if(prob=="no"){
+        inner = 1 - exp(-mu*(2*t3 - At - Aq)) *(1- exp(-mu*(t2 - Af))) - exp(-mu*(2*t2 - Af - Aq)) * (1-exp(-mu*(2*t3-t2 - At)))
+      }
     }
-    if( prob == "correct" & protocol == "exact-match"){ # l > 0, k = 0
-      ls = 1:lmax; ks = 0
-    }
-    if( prob == "no" & protocol == "least-mismatch"){ # l = k
-      ls = ks = 0:lmax
-    }
-    if(prob == "no" & protocol == "exact-match"){ # l > 0, k > 0, OR l = k = 0
-      lks = combn(1:lmax,2)
-      ls = c(0,lks[1,],lks[2,],1:lmax); ks = c(0, lks[2,],lks[1,],1:lmax) 
-    }
-    if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
-      ls = lks[1,]; ks = lks[2,]
-    }
-    if ( prob == "incorrect" & protocol == "exact-match"){ # l = 0, k > 0
-      ls = 0; ks = 1:lmax
-    }
-    innersumfunc = function(l,k){
-      # the t1-t1+1 at the beginning is because t1 is vectorized, and this just gets it into the right dimensions
-      mu^(l+k) * (t3-Af)^l * (2*t1-t3-At)^k * exp(-mu*(2*t1-Af-At)) / (factorial(l)*factorial(k))
-    }
-    innersumfunc = Vectorize(innersumfunc)
-    innersum = rowSums(innersumfunc(ls,ks))
+      
     front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t3/(2*N)) # 1e30 avoids underflow errors
-    return(innersum*front)
+    return(inner*front)
   }
   F1 = function(t3) { # <- outer integral dt
     fun <- function(t1) case2.3inner(t1,t3)  # <- inner integral dt
@@ -205,7 +221,7 @@ compute.prob <- function(N,mu,Ttf,
                          Tqt=0,At=0,Af=0,Aq=0,rT=1,rF=1,
                          prob="correct",protocol="least-mismatch"){
   prob.case1 = (1-exp(-min(Ttf - Aq , Ttf - At)/(2*N))) 
-  if(prob.case1 > 0.999){
+  if(prob.case1 > 0.9999){
     # no need to compute case 2
     out = case1(N,mu,Ttf,Tqt,At,Af,Aq,prob,protocol)
   }
@@ -248,7 +264,7 @@ k.base = k.list[3]
 rT.base = rT.list[5]
 Tqt.base = Tqt.list[1]
 
-protocol.list = c("least-mismatch")
+protocol.list = c("least-mismatch","exact-match")
 assignment.list = c("correct","incorrect","no")
 tempN = cbind(expand.grid(assignment.list,protocol.list,N.list,stringsAsFactors=FALSE),
               Ttf=Ttf.base,k=k.base,rT=rT.base,Tqt=Tqt.base,
