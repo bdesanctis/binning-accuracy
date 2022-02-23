@@ -1,8 +1,7 @@
+# R script associated with "A Theoretical Analysis of Taxonomic Binning Accuracy".
+# Bianca De Sanctis, Feb 23 2022. bdd28@cam.ac.uk. 
 
-# R script associated with "Accuracy of Supervised Binning for Metagenomic Sequences".
-# Bianca De Sanctis, Oct 22 2021.
-
-# The main function compute.prob() is defined on line 200. It takes as input N (effective population size), mu (mutation rate for the sequence per generation),  Ttf (true-false species divergence time), Tqt (true-query species divergence time), At, Af and Aq (ages of true, false and query sequences), rT and rF (completeness of true and false reference sequences), prob (the type of assignment probability: correct, incorrect or no), and protocol (either least-mismatch or exact-match), and it outputs the assignment probability.
+# The main function compute.prob() is defined on line 221. It takes as input N (effective population size), mu (mutation rate for the sequence per generation),  Ttf (true-false species divergence time), Tqt (true-query species divergence time), At, Af and Aq (ages of true, false and query sequences), rT and rF (completeness of true and false reference sequences), prob (the type of assignment probability: correct, incorrect or no), and protocol (either least-mismatch or exact-match), and it outputs the assignment probability.
 
 
 library(ggplot2)
@@ -10,11 +9,13 @@ library(gridExtra)
 
 
 # 1. Defines functions to compute assignment probabilities.  ################
+
 # Important note: The inside integral is very small, and prone to underflow errors. 
-# To fix this, I multiple by a scaling constant of 1e30 on the inside, and divide it out on the outside (lines 55 and 64).
-# This works fine for the range of parameters we use in the paper.
-# However, for parameters outside this range, the scaling constant may be inappropriate.
-# So if you are getting strange results, you can most likely solve them by tinkering with the value of the scaling constant.
+# This means the calculation can be very slow.
+# To speed it up, I multiply by a scaling constant of 1e30 on the inside of the integral, and divide it out on the outside.
+# This works fine for the wide range of parameters we use in the paper.
+# However, with N>30000, the current code will be prone to underflow issues and report inaccurate results, regardless of the scaling constant used.
+
 
 case1 = function(N,mu,Ttf,
                  Tqt=0,At=0,Af=0,Aq=0,
@@ -116,7 +117,7 @@ case2.1 = function(N,mu,Ttf,
   }
   F1 = Vectorize(F1)
   answer = integrate(F1,Ttf,Inf)$value/1e30 # outer integral limits
-  denominator = 0.5 * exp(-Ttf/(N)) 
+  denominator = exp(-Ttf/(2*N)) 
   return(answer/denominator)
 }
 
@@ -164,7 +165,7 @@ case2.2 = function(N,mu,Ttf,
   }
   F1 = Vectorize(F1)
   answer = integrate(F1,Ttf,Inf)$value/1e30 # outer integral limits
-  denominator = 0.5 * exp(-Ttf/(N)) 
+  denominator = exp(-Ttf/(2*N)) 
   return(answer/denominator)
 }
 
@@ -213,7 +214,7 @@ case2.3 = function(N,mu,Ttf,
   }
   F1 = Vectorize(F1)
   answer = integrate(F1,Ttf,Inf)$value/1e30 # outer integral limits
-  denominator = 0.5 * exp(-Ttf/(N)) 
+  denominator = exp(-Ttf/(2*N)) 
   return(answer/denominator)
 }
 
