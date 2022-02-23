@@ -2,7 +2,7 @@ Oct 22, 2021
 
 Bianca De Sanctis, bdd28@cam.ac.uk
 
-Two code files to go with the paper "Accuracy of supervised binning for metagenomic sequences".
+Two code files to go with the paper "A theoretical analysis of Taxonomic Binning Accuracy".
 
 There is an R script theoretical-calculation.R which runs the theoretical accuracy calculation. It contains a main function to calculate the theoretical accuracy, with the assignment method and the type of calculation ("correct","incorrect" or "no") as input. Other input options can be seen at the top of the script in the R function. 
 The script also contains the code to run the function over a parameter range and make the main figure in the paper.
