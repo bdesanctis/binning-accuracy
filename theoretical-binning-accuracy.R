@@ -1,21 +1,26 @@
 # R script associated with "A Theoretical Analysis of Taxonomic Binning Accuracy".
-# Bianca De Sanctis, Feb 23 2022. bdd28@cam.ac.uk. 
+# Bianca De Sanctis, Feb 28 2022. bdd28@cam.ac.uk. 
 
-# The main function compute.prob() is defined on line 221. It takes as input N (effective population size), mu (mutation rate for the sequence per generation),  Ttf (true-false species divergence time), Tqt (true-query species divergence time), At, Af and Aq (ages of true, false and query sequences), rT and rF (completeness of true and false reference sequences), prob (the type of assignment probability: correct, incorrect or no), and protocol (either least-mismatch or exact-match), and it outputs the assignment probability.
-
-
-library(ggplot2)
-library(gridExtra)
-
+# Section 1: Compute probabilities. The main function compute.prob() is defined on line 221. It takes as input N (effective population size), mu (mutation rate for the sequence per generation),  Ttf (true-false species divergence time), Tqt (true-query species divergence time), At, Af and Aq (ages of true, false and query sequences), rT and rF (completeness of true and false reference sequences), prob (the type of assignment probability: correct, incorrect or no), and protocol (either least-mismatch or exact-match), and it outputs the assignment probability.
+# Section 2: Plotting the main figure for the paper. 
 
 # 1. Defines functions to compute assignment probabilities.  ################
 
-# Important note: The inside integral is very small, and prone to underflow errors. 
-# This means the calculation can be very slow.
+# Important usage notes: 
+# (a) Scaling constant: The inside integral is very small, which means the calculation can be slow.
 # To speed it up, I multiply by a scaling constant of 1e30 on the inside of the integral, and divide it out on the outside.
-# This works fine for the wide range of parameters we use in the paper.
-# However, with N>30000, the current code will be prone to underflow issues and report inaccurate results, regardless of the scaling constant used.
+constant=1e30
 
+# (b) For the least mismatch protocol, we want to sum to infinity, but these values will become negligible quickly.
+# Here, I sum to a reasonably high value to be sufficiently accurate for all the parameters used in the paper.
+# However, you may want to increase lmax if you have a high expected number of mutations per branch.
+# Decreasing lmax, when reasonable, can also increase speed for the least-mismatch calculation. 
+# You can easily test if lmax is sufficient for your parameter set by summing the least-mismatch probabilities for correct, incorrect and none, and seeing if they are sufficiently close to 1. 
+lmax = 15
+
+# (c) With very large N, the integration engine is prone to instability, probably due to extremely small integrands.
+# This can be fixed easily by rescaling coalescent time.
+# In particular, if one wanted results for a large population size (eg. N=1e6), they could input a smaller population size (eg. N=1e4), decrease times and ages, and increase the mutation rate by the same factor (eg. 100).
 
 case1 = function(N,mu,Ttf,
                  Tqt=0,At=0,Af=0,Aq=0,
@@ -29,7 +34,6 @@ case1 = function(N,mu,Ttf,
       # Theoretically, we want to sum this on l=k to inf, k=0 to infinity. 
       # But very quickly as we increase k, the values will be come negligible. So just go up to some number lmax which is sufficiently large.
       # l is for false species, k is for true
-      lmax = max(3,round(Ttf*mu*2*10))
       lks = combn(0:lmax,2)
       if( prob == "correct" & protocol == "least-mismatch"){ # l > k
         ls = lks[2,]; ks = lks[1,]
@@ -57,18 +61,17 @@ case1 = function(N,mu,Ttf,
         inner = 1 - exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(2*t2-t1 - Af))) - (1-exp(-mu*(t1 - At )))*exp(-mu*(2*t2 - Af - Aq))
       }
     }
-  front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t2/(2*N)) # 1e30 avoids underflow errors
-  return(inner*front)
+    front = constant* exp(-(t1+t2)/(2*N)) # 1e30 avoids underflow errors
+    return(inner*front)
   }
-  
   
   F1 = function(t2) {
     fun <- function(t1) case1inner(t1,t2) 
-    integrate(fun,Tqt,Ttf)$value # inner integral limits
+    integrate(fun,Tqt,Ttf)$value
   }
   F1 = Vectorize(F1)
-  answer = integrate(F1,Ttf,Inf)$value/1e30 # outer integral limits
-  denominator = exp(-Ttf/(2*N)) * ( exp(-Tqt/(2*N)) - exp(-Ttf/(2*N))   )
+  answer = integrate(F1,Ttf,Inf)$value/constant # outer integral limits
+  denominator = exp(-Ttf/(2*N)) * ( exp(-Tqt/(2*N)) - exp(-Ttf/(2*N))   ) * (2*N)^2 
   return(answer/denominator)
 }
 
@@ -77,10 +80,7 @@ case2.1 = function(N,mu,Ttf,
                    prob="correct",protocol="least-mismatch"){
   case2.1inner = function(t1,t2){
     if(protocol == "least-mismatch"){
-      # Theoretically, we want to sum this on l=k to inf, k=0 to infinity. 
-      # But very quickly as we increase k, the values will be come negligible. So just go up to some number lmax which is sufficiently large.
       # l is for false species, k is for true
-      lmax = max(3,round(Ttf*mu*2*10))
       lks = combn(0:lmax,2)
       if( prob == "correct" & protocol == "least-mismatch"){ # l > k
         ls = lks[2,]; ks = lks[1,]
@@ -91,11 +91,13 @@ case2.1 = function(N,mu,Ttf,
       if( prob == "incorrect" & protocol == "least-mismatch" ){ # l < k
         ls = lks[1,]; ks = lks[2,]
       }
-      innersumfunc = function(l,k){
-        mu^(l+k) * (2*t2 - t1-Af)^l * (t1-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
+      if( protocol == "least-mismatch"){
+        innersumfunc = function(l,k){
+          mu^(l+k) * (2*t2 - t1-Af)^l * (t1-At)^k * exp(-mu*(2*t2-Af-At)) / (factorial(l)*factorial(k))
+        }
+        innersumfunc = Vectorize(innersumfunc)
+        inner = rowSums(innersumfunc(ls,ks))
       }
-      innersumfunc = Vectorize(innersumfunc)
-      inner = rowSums(innersumfunc(ls,ks))
     }
     if(protocol == "exact-match"){
       if (prob=="correct"){
@@ -108,16 +110,16 @@ case2.1 = function(N,mu,Ttf,
         inner = 1 - exp(-mu*2*t1) *(1- exp(-mu*(2*t2-t1))) - (1-exp(-mu*t1))*exp(-mu*(2*t2))
       }
     }
-    front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t2/(2*N)) # 1e30 avoids underflow errors
+    front = constant * exp((-t1-t2)/(2*N)) 
     return(inner*front)
   }
-  F1 = function(t1) { # <- outer integral dt
-    fun <- function(t2) case2.1inner(t1,t2)  # <- inner integral dt
+  F1 = function(t1) { # <- outer integral 
+    fun <- function(t2) case2.1inner(t1,t2)  # <- inner integral 
     integrate(fun,t1,Inf)$value # inner integral limits
   }
   F1 = Vectorize(F1)
-  answer = integrate(F1,Ttf,Inf)$value/1e30 # outer integral limits
-  denominator = exp(-Ttf/(2*N)) 
+  answer = integrate(F1,Ttf,Inf,rel.tol=tol)$value/constant # outer integral limits
+  denominator = (2*N)^2 * (1/2) * exp(-Ttf/N)#*exp(-Ttf/(2*N)) 
   return(answer/denominator)
 }
 
@@ -126,7 +128,6 @@ case2.2 = function(N,mu,Ttf,
                    prob="correct",protocol="least-mismatch"){
   case2.2inner = function(t1,t2){
     if(protocol == "least-mismatch"){
-      lmax = max(3,round(Ttf*mu*2*3))
       lks = combn(0:lmax,2)
       if( prob == "correct" & protocol == "least-mismatch"){ # l > k
         ls = lks[2,]; ks = lks[1,]
@@ -155,17 +156,16 @@ case2.2 = function(N,mu,Ttf,
         inner = 1 - exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(t2 - Af))) - exp(-mu*(2*t1 - Af - Aq)) * (1-exp(-mu*( t2 - At )))
       }
     }
-    
-    front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t2/(2*N)) # 1e30 avoids underflow errors
+    front = constant*  exp(-(t1+t2)/(2*N)) 
     return(inner*front)
   }
-  F1 = function(t2) { # <- outer integral dt
-    fun <- function(t1) case2.2inner(t1,t2)  # <- inner integral dt
+  F1 = function(t2) { # <- outer integral 
+    fun <- function(t1) case2.2inner(t1,t2)  # <- inner integral  
     integrate(fun,t2,Inf)$value # inner integral limits
   }
   F1 = Vectorize(F1)
-  answer = integrate(F1,Ttf,Inf)$value/1e30 # outer integral limits
-  denominator = exp(-Ttf/(2*N)) 
+  answer = integrate(F1,Ttf,Inf,rel.tol=tol)$value/constant # outer integral limits
+  denominator = (1/2) * exp(-Ttf/N)* (2*N)^2
   return(answer/denominator)
 }
 
@@ -174,7 +174,6 @@ case2.3 = function(N,mu,Ttf,
                    prob="correct",protocol="least-mismatch"){
   case2.3inner = function(t1,t3){
     if(protocol == "least-mismatch"){
-      lmax = max(3,round(Ttf*mu*2*3))
       lks = combn(0:lmax,2)
       if( prob == "correct" & protocol == "least-mismatch"){ # l > k
         ls = lks[2,]; ks = lks[1,]
@@ -195,26 +194,27 @@ case2.3 = function(N,mu,Ttf,
     
     if(protocol == "exact-match"){
       if (prob=="correct"){
-        inner = exp(-mu*(2*t3 - At - Aq)) *(1- exp(-mu*(t2 - Af)))
+        inner = exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(t3 - Af)))
       }
       if(prob =="incorrect"){
-        inner = exp(-mu*(2*t2 - Af - Aq)) * (1-exp(-mu*(2*t3-t2 - At)))
+        inner = exp(-mu*(2*t3 - Af - Aq)) * (1-exp(-mu*(2*t1-t3 - At)))
       }
       if(prob=="no"){
-        inner = 1 - exp(-mu*(2*t3 - At - Aq)) *(1- exp(-mu*(t2 - Af))) - exp(-mu*(2*t2 - Af - Aq)) * (1-exp(-mu*(2*t3-t2 - At)))
+        inner = 1 - exp(-mu*(2*t1 - At - Aq)) *(1- exp(-mu*(t3 - Af))) - 
+          exp(-mu*(2*t3 - Af - Aq)) * (1-exp(-mu*(2*t1-t3 - At)))
       }
     }
-      
-    front = 1e30* 1/(2*N)^2 * exp(-t1/(2*N)) * exp (-t3/(2*N)) # 1e30 avoids underflow errors
+    
+    front = constant * exp(-(t1+t3)/(2*N)) 
     return(inner*front)
   }
-  F1 = function(t3) { # <- outer integral dt
-    fun <- function(t1) case2.3inner(t1,t3)  # <- inner integral dt
+  F1 = function(t3) { # <- outer integral 
+    fun <- function(t1) case2.3inner(t1,t3)  # <- inner integral 
     integrate(fun,t3,Inf)$value # inner integral limits
   }
   F1 = Vectorize(F1)
-  answer = integrate(F1,Ttf,Inf)$value/1e30 # outer integral limits
-  denominator = exp(-Ttf/(2*N)) 
+  answer = integrate(F1,Ttf,Inf,rel.tol=tol)$value/constant # outer integral limits
+  denominator = (1/2) * exp(-Ttf/N) *(2*N)^2
   return(answer/denominator)
 }
 
@@ -223,7 +223,7 @@ compute.prob <- function(N,mu,Ttf,
                          prob="correct",protocol="least-mismatch"){
   prob.case1 = (1-exp(-min(Ttf - Aq , Ttf - At)/(2*N))) 
   if(prob.case1 > 0.9999){
-    # no need to compute case 2
+    # no need to compute case 2 (it's comparatively slow)
     out = case1(N,mu,Ttf,Tqt,At,Af,Aq,prob,protocol)
   }
   else{
@@ -242,23 +242,25 @@ compute.prob <- function(N,mu,Ttf,
   return(final)
 }
 
-
-
-# minimum example: 
-# compute.prob(N = 10000,mu = 1e-8,Ttf = 4e5)
+# Minimum example: 
+# with pop size 10k, mutation rate 1e-8 per site, read length 100, true-false divergence 4e5 generations:
+# compute.prob(N = 10000,mu = 1e-8*100,Ttf = 4e5)
 
 
 
 # 2. Creates the main paper figure. #####
 
-N.list = seq(from=4000,to=20000,by=2000)
-Ttf.list = seq(from=2e5,to=10e5,by = 2e5)
-k.list = c(32,64,96,128,160)
-rT.list=c(0.2,0.4,0.6,0.8,1)
-Tqt.list = seq(from = 0, to = 3e5, by=5e4) 
+library(ggplot2)
+library(gridExtra)
+
+N.list = seq(from=4000,to=20000,by=2000) # effective pop size
+Ttf.list = seq(from=2e5,to=10e5,by = 2e5) # in generations
+k.list = c(32,64,96,128,160) # read length
+rT.list=c(0.2,0.4,0.6,0.8,1) # completeness of true reference
+Tqt.list = seq(from = 0, to = 3e5, by=5e4)  # in generations
+mu.base = 1e-8 # per base per generation (multiply it by k later)
 
 # base parameter choices
-mu.base = 1e-8 
 N.base = N.list[4] 
 Ttf.base = Ttf.list[2]
 k.base = k.list[3]
@@ -285,15 +287,18 @@ temp = rbind(tempN,tempTtf,tempk,temprT,tempTqt,stringsAsFactors=FALSE)
 temp = cbind(temp,rep(-1,nrow(temp)),stringsAsFactors=FALSE)
 out.table = data.frame(temp,stringsAsFactors=FALSE)
 colnames(out.table) = c("assignment","protocol","N","Ttf","k","rT","Tqt","probability")
+
 for(row in 1:nrow(out.table)){
-  tryCatch({out.table[row,8] = compute.prob(N = out.table$N[row],
-                                            mu = mu.base * out.table$k[row],
-                                            Ttf = out.table$Ttf[row] ,
-                                            prob = out.table$assignment[row],
-                                            rT = out.table$rT[row],
-                                            Tqt = out.table$Tqt[row],
-                                            protocol = out.table$protocol[row])})
+    tryCatch({out.table[row,8] = compute.prob(N = out.table$N[row],
+                                              mu = mu.base * out.table$k[row],
+                                              Ttf = out.table$Ttf[row] ,
+                                              prob = out.table$assignment[row],
+                                              rT = out.table$rT[row],
+                                              Tqt = out.table$Tqt[row],
+                                              protocol = out.table$protocol[row])})
 } 
+
+out.table = out.table[out.table$protocol=="least-mismatch",]
 
 col1="#009E73"   # green
 col2="#D55E00"  # red
@@ -305,6 +310,7 @@ out.table$N = out.table$N / 1000
 out.table$Ttf = out.table$Ttf / 1e5
 out.table$Tqt = out.table$Tqt / 1e5
 
+
 relN = out.table[1:27,] 
 relN$N = factor(relN$N,levels=unique(relN$N))
 relN$protocol = ifelse(relN$protocol=="exact-match","EM","LM")
@@ -313,7 +319,7 @@ G1a = ggplot(relN, aes(x = N, y = probability, fill = assignment)) +
   geom_bar(stat = 'identity', position = 'stack') +    
   scale_fill_manual(values = c(col1, col2, 
                                col3)) +  
-  labs(x="Effective population size (thousands)",y="")+
+  labs(x="Effective population size\n(hundreds of thousands)",y="")+
   theme(legend.position="none")
 
 
@@ -339,7 +345,7 @@ G1b = ggplot(ratio.relN, aes(x = N, y = count, fill = assignment)) +
   geom_bar(stat = 'identity', position = 'stack') + 
   scale_fill_manual(values = c(col4, col2, 
                                col3)) + 
-  labs(x="Effective population size (thousands)",y="")+
+  labs(x="Effective population size\n(hundreds of thousands)",y="")+
   theme(legend.position="none")
 
 
@@ -497,66 +503,4 @@ G5b = ggplot(ratio.relTqt, aes(x = Tqt, y = count, fill = assignment)) +
 # Plot to device
 grid.arrange(G1a,G1b,G2a,G2b,G5a,G5b,G3a,G3b,G4a,G4b,
              nrow= 5,ncol=2)
-
-
-# 3. Creates a figure for the example when the two protocols differ. ####
-
-mu.base = 1e-8
-N.base = 10000
-Ttf.base =  1e6
-k.base = 160
-rT.base = 1
-Tqt.base =  3e5
-
-protocol.list = c("least-mismatch","exact-match")
-assignment.list = c("correct","incorrect","no")
-temp = expand.grid(assignment.list,protocol.list,N.base,Ttf=Ttf.base,
-                   k=k.base,rT=rT.base,Tqt=Tqt.base,stringsAsFactors=FALSE)
-colnames(temp) =  c("assignment","protocol","N","Ttf","k","rT","Tqt")
-temp = cbind(temp,rep(-1,nrow(temp)))
-out.table = data.frame(temp,stringsAsFactors=FALSE)
-colnames(out.table) = c("assignment","protocol","N","Ttf","k","rT","Tqt","probability")
-for(row in 1:nrow(out.table)){
-  tryCatch({out.table[row,8] = compute.prob(N = out.table$N[row],
-                                            mu = mu.base * out.table$k[row],
-                                            Ttf = out.table$Ttf[row] ,
-                                            prob = out.table$assignment[row],
-                                            rT = out.table$rT[row],
-                                            Tqt = out.table$Tqt[row],
-                                            protocol = out.table$protocol[row])})
-}
-
-reld = out.table
-reld$protocol = ifelse(reld$protocol=="exact-match","Exact match","Least mismatch")
-dplot = ggplot(reld, aes(x = protocol, y = probability, fill = assignment)) + 
-  theme_set(theme_bw() +theme(legend.position="none") ) +
-  geom_bar(stat = 'identity', position = 'stack')  +  
-  ggtitle(paste0("Probability of assignment")) +
-  scale_fill_manual(values = c(col1, col2, col3)) + labs(x="",y="")
-
-cor = reld[reld$assignment == "correct",]
-incor = reld[reld$assignment == "incorrect",]
-cond.cor = cor$probability / (cor$probability + incor$probability)
-cond.incor = 1 - cor$probability / (cor$probability + incor$probability)
-cond.reld = reld
-cond.reld = cond.reld[cond.reld$assignment %in% c("correct","incorrect"),]
-cond.reld$probability = c(rbind(cond.cor,cond.incor))
-ratio.cor = cor$probability / incor$probability
-ratio.reld = reld
-ratio.reld = ratio.reld[ratio.reld$assignment == "correct",]
-ratio.reld$probability = ratio.cor
-colnames(ratio.reld)[8] = "count"
-dplot2 = ggplot(ratio.reld, aes(x = protocol, y = count, fill = assignment)) + 
-  theme_set( theme_bw() +theme(legend.position="none") ) +
-  geom_bar(stat = 'identity', position = 'stack')  +   ggtitle(paste0(
-    "Correct assignments per incorrect assignment")) +
-  scale_fill_manual(values = c(col4)) + labs(x="",y="")
-
-grid.arrange(dplot,dplot2,nrow= 1) 
-
-
-
-
-
-
 
