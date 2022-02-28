@@ -119,7 +119,7 @@ case2.1 = function(N,mu,Ttf,
   }
   F1 = Vectorize(F1)
   answer = integrate(F1,Ttf,Inf,rel.tol=tol)$value/constant # outer integral limits
-  denominator = (2*N)^2 * (1/2) * exp(-Ttf/N)#*exp(-Ttf/(2*N)) 
+  denominator = (2*N)^2 * (1/2) * exp(-Ttf/N)
   return(answer/denominator)
 }
 
